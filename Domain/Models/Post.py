@@ -1,45 +1,99 @@
 from datetime import datetime
 
 class Post:
-    def __init__(self, post_type_id, creation_date=None, score=0, view_count=0, body="", accepted_answer_id=None):
+    def __init__(
+        self,
+        id=None,
+        post_type_id=None,
+        accepted_answer_id=None,
+        parent_id=None,
+        creation_date=None,
+        deletion_date=None,
+        score=0,
+        view_count=0,
+        body="",
+        owner_user_id=None,
+        owner_display_name="",
+        last_editor_user_id=None,
+        last_editor_display_name="",
+        last_edit_date=None,
+        last_activity_date=None,
+        title="",
+        tags="",
+        answer_count=0,
+        comment_count=0,
+        favorite_count=0,
+        closed_date=None,
+        community_owned_date=None,
+        content_license="",
+    ):
         """
-        Иницијализује објекат објаве са основним атрибутима.
-
-        :param post_type_id: Тип објаве (нпр. "питање", "општа дискусија") (string).
-        :param creation_date: Датум и време креирања објаве (datetime, подразумевано тренутни датум и време).
-        :param score: Оцена корисности објаве (int, подразумевано 0).
-        :param view_count: Број прегледа објаве (int, подразумевано 0).
-        :param body: Опис проблема или садржај објаве (string, подразумевано празан стринг).
-        :param accepted_answer_id: ID коментара који је означен као тачан одговор (int, подразумевано None).
+        Initializes a post object with attributes matching the database schema.
         """
+        self.id = id
         self.post_type_id = post_type_id
+        self.accepted_answer_id = accepted_answer_id
+        self.parent_id = parent_id
         self.creation_date = creation_date or datetime.now()
+        self.deletion_date = deletion_date
         self.score = score
         self.view_count = view_count
         self.body = body
-        self.accepted_answer_id = accepted_answer_id
+        self.owner_user_id = owner_user_id
+        self.owner_display_name = owner_display_name
+        self.last_editor_user_id = last_editor_user_id
+        self.last_editor_display_name = last_editor_display_name
+        self.last_edit_date = last_edit_date
+        self.last_activity_date = last_activity_date
+        self.title = title
+        self.tags = tags
+        self.answer_count = answer_count
+        self.comment_count = comment_count
+        self.favorite_count = favorite_count
+        self.closed_date = closed_date
+        self.community_owned_date = community_owned_date
+        self.content_license = content_license
 
     def __str__(self):
-        """
-        Враћа читљиву репрезентацију објаве.
+        return (f"Post(Id={self.id}, PostTypeId={self.post_type_id}, AcceptedAnswerId={self.accepted_answer_id}, "
+                f"ParentId={self.parent_id}, CreationDate={self.creation_date}, DeletionDate={self.deletion_date}, "
+                f"Score={self.score}, ViewCount={self.view_count}, Body={self.body}, OwnerUserId={self.owner_user_id}, "
+                f"OwnerDisplayName={self.owner_display_name}, LastEditorUserId={self.last_editor_user_id}, "
+                f"LastEditorDisplayName={self.last_editor_display_name}, LastEditDate={self.last_edit_date}, "
+                f"LastActivityDate={self.last_activity_date}, Title={self.title}, Tags={self.tags}, "
+                f"AnswerCount={self.answer_count}, CommentCount={self.comment_count}, FavoriteCount={self.favorite_count}, "
+                f"ClosedDate={self.closed_date}, CommunityOwnedDate={self.community_owned_date}, "
+                f"ContentLicense={self.content_license})")
 
-        :return: Стринг који представља објаву.
-        """
-        return (f"Post(PostTypeId={self.post_type_id}, CreationDate={self.creation_date}, "
-                f"Score={self.score}, ViewCount={self.view_count}, Body={self.body}, "
-                f"AcceptedAnswerId={self.accepted_answer_id})")
-        
     def to_dict(self):
         """
-        Конвертује атрибуте објекта у речник.
-
-        :return: Речник који представља објекат објаве.
+        Converts the object's attributes to a dictionary.
         """
+        def serialize_date(date):
+            return date.isoformat() if isinstance(date, datetime) else date
+
         return {
+            "Id": self.id,
             "PostTypeId": self.post_type_id,
-            "CreationDate": self.creation_date.isoformat() if isinstance(self.creation_date, datetime) else self.creation_date,
+            "AcceptedAnswerId": self.accepted_answer_id,
+            "ParentId": self.parent_id,
+            "CreationDate": serialize_date(self.creation_date),
+            "DeletionDate": serialize_date(self.deletion_date),
             "Score": self.score,
             "ViewCount": self.view_count,
             "Body": self.body,
-            "AcceptedAnswerId": self.accepted_answer_id
+            "OwnerUserId": self.owner_user_id,
+            "OwnerDisplayName": self.owner_display_name,
+            "LastEditorUserId": self.last_editor_user_id,
+            "LastEditorDisplayName": self.last_editor_display_name,
+            "LastEditDate": serialize_date(self.last_edit_date),
+            "LastActivityDate": serialize_date(self.last_activity_date),
+            "Title": self.title,
+            "Tags": self.tags,
+            "AnswerCount": self.answer_count,
+            "CommentCount": self.comment_count,
+            "FavoriteCount": self.favorite_count,
+            "ClosedDate": serialize_date(self.closed_date),
+            "CommunityOwnedDate": serialize_date(self.community_owned_date),
+            "ContentLicense": self.content_license,
         }

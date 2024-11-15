@@ -1,30 +1,48 @@
-class Comment:
-    def __init__(self, post_id, score=0, text=""):
-        """
-        Иницијализује објекат коментара са основним атрибутима.
+from datetime import datetime
 
-        :param post_id: ID објаве са којом је коментар повезан (int).
-        :param score: Оцена корисности коментара (int, подразумевано 0).
-        :param text: Текст коментара (string, подразумевано празан стринг).
+class Comment:
+    def __init__(
+        self,
+        id=None,
+        post_id=None,
+        score=0,
+        text="",
+        creation_date=None,
+        user_display_name="",
+        user_id=None,
+        content_license=""
+    ):
         """
+        Initializes a comment object with attributes matching the database schema.
+        """
+        self.id = id
         self.post_id = post_id
         self.score = score
         self.text = text
+        self.creation_date = creation_date or datetime.now()
+        self.user_display_name = user_display_name
+        self.user_id = user_id
+        self.content_license = content_license
 
     def __str__(self):
-        """
-        Враћа читљиву репрезентацију коментара.
+        return (f"Comment(Id={self.id}, PostId={self.post_id}, Score={self.score}, Text={self.text}, "
+                f"CreationDate={self.creation_date}, UserDisplayName={self.user_display_name}, "
+                f"UserId={self.user_id}, ContentLicense={self.content_license})")
 
-        :return: Стринг који представља коментар.
-        """
-        return f"Comment(PostId={self.post_id}, Score={self.score}, Text={self.text})"
-    
     def to_dict(self):
         """
-        Претвара атрибуте објекта у речник.
+        Converts the object's attributes to a dictionary.
         """
+        def serialize_date(date):
+            return date.isoformat() if isinstance(date, datetime) else date
+
         return {
-            "PostID": self.post_id,
+            "Id": self.id,
+            "PostId": self.post_id,
             "Score": self.score,
             "Text": self.text,
+            "CreationDate": serialize_date(self.creation_date),
+            "UserDisplayName": self.user_display_name,
+            "UserId": self.user_id,
+            "ContentLicense": self.content_license,
         }
