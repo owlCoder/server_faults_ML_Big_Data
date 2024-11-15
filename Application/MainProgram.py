@@ -1,0 +1,6 @@
+from Services.DataImporterServices.UsersImporterService import load_users_data
+from Services.DataPreprocessServices.UserDataPreprocessService import preprocess_users_data
+
+users_df = load_users_data()
+prepared_users = preprocess_users_data(users_df)
+print(prepared_users)

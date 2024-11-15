@@ -3,16 +3,25 @@ from Domain.Constants.XmlPaths import USERS_XML_PATH
 
 def load_users_data():
     """
-    Loads the users data from the XML file and returns it as a pandas DataFrame.
+    Loads the data from multiple Users XML files and returns them as a single pandas DataFrame.
 
-    This method reads the XML file located at the path specified by 
-    `USERS_XML_PATH` in the Constants module, and returns it as a DataFrame.
+    This method reads multiple Users XML files (e.g., Users-1.xml, Users-2.xml, ...)
+    and concatenates them into one DataFrame.
 
     Returns:
-        pd.DataFrame: DataFrame containing the users data.
+        pd.DataFrame: A DataFrame containing all the users data combined.
     """
-    # Load the XML data into a pandas DataFrame
-    users_df = pd.read_xml(USERS_XML_PATH)
-    
-    # Return the DataFrame
-    return users_df
+    # Initialize an empty list to store DataFrames
+    all_users_data = []
+
+    # Read multiple Users XML files
+    for i in range(1, 2):
+        users_df = pd.read_xml(USERS_XML_PATH.format(i))
+        users_df['Source'] = 'Users'
+        all_users_data.append(users_df)
+
+    # Concatenate all the data into a single DataFrame
+    combined_users_df = pd.concat(all_users_data, ignore_index=True)
+
+    # Return the combined DataFrame
+    return combined_users_df
