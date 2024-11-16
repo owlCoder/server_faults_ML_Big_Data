@@ -1,5 +1,8 @@
 import pandas as pd
 
+from Services.TextCleanUpService.TextCleanService import clean_text
+
+
 def preprocess_posts_data(posts_df, reputable_user_ids):
     """
     Preprocesses the posts data to filter relevant columns, keep posts
@@ -24,5 +27,8 @@ def preprocess_posts_data(posts_df, reputable_user_ids):
 
     # Retain only the specified columns
     posts_df = posts_df[['PostTypeId', 'Score', 'Title', 'OwnerUserId', 'AnswerCount', 'Body']]
+
+    # Remove html content - not relevant
+    posts_df['Body'] = posts_df['Body'].apply(clean_text)
 
     return posts_df
