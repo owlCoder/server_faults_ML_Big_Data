@@ -13,10 +13,14 @@ def preprocess_users_data(users_df):
 
     Returns:
         pd.DataFrame: The preprocessed DataFrame containing only relevant columns for PCA,
-                      with the original 'AccountId' kept intact, and rows with AccountId < 1 removed.
+                      with the original 'AccountId' kept intact, and rows with AccountId < 1 removed
+                      and Reputation lower than 50.
     """
     # Filter out rows where AccountId is less than 1
     users_df = users_df[users_df['AccountId'] >= 1]
+
+    # Filter out rows where Reputation is less than 50
+    users_df = users_df[users_df['Reputation'] >= 50]
 
     # Select only the relevant columns: 'AccountId', 'DisplayName', 'Reputation'
     users_df_selected = users_df[['AccountId', 'DisplayName', 'Reputation', 'UpVotes']]
@@ -32,9 +36,9 @@ def preprocess_users_data(users_df):
 
     # Separate the 'AccountId' from the features to be scaled
     account_ids = users_df_selected['AccountId']
-    features_to_scale = users_df_selected_imputed[:, 1:]  # Only scale 'Reputation', drop 'AccountId'
+    features_to_scale = users_df_selected_imputed[:, 1:]  # Only scale 'Reputation' and 'UpVotes', drop 'AccountId'
 
-    # Standardize the data (only for numeric columns)
+    # Standardize the data
     scalar = StandardScaler()
     scaled_data = scalar.fit_transform(features_to_scale)
 

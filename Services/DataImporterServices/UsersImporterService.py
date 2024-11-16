@@ -17,7 +17,6 @@ def load_users_data():
     # Read multiple Users XML files
     for i in range(1, 2):
         users_df = pd.read_xml(USERS_XML_PATH.format(i))
-        users_df['Source'] = 'Users'
         all_users_data.append(users_df)
 
     # Concatenate all the data into a single DataFrame
