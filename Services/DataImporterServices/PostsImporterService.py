@@ -1,26 +1,38 @@
 import pandas as pd
+from xml.etree.ElementTree import iterparse
 from Domain.Constants.XmlPaths import POSTS_XML_PATH
 
 def load_posts_data():
     """
-    Loads the data from multiple Posts XML files and returns them as a single pandas DataFrame.
+    Loads and processes large Posts XML files using iterative parsing.
 
-    This method reads multiple Posts XML files (e.g., Posts-1.xml, Posts-2.xml, ...)
-    and concatenates them into one DataFrame.
+    This method reads Posts XML files iteratively to handle large datasets efficiently
+    and returns the combined DataFrame.
 
     Returns:
-        pd.DataFrame: A DataFrame containing all the posts data combined.
+        pd.DataFrame: DataFrame containing the combined posts data.
     """
-    # Initialize an empty list to store DataFrames
+    # Initialize an empty list to store parsed records
     all_posts_data = []
 
-    # Read multiple Posts XML files
-    for i in range(1, 2):
-        posts_df = pd.read_xml(POSTS_XML_PATH.format(i))
-        all_posts_data.append(posts_df)
+    # Iterate through multiple XML files
+    for i in range(0, 2):
+        xml_file_path = POSTS_XML_PATH.format(i)
 
-    # Concatenate all the data into a single DataFrame
-    combined_posts_df = pd.concat(all_posts_data, ignore_index=True)
+        # Parse XML iteratively
+        for event, element in iterparse(xml_file_path, events=("end",)):
+            # Process only 'row' elements
+            if element.tag == "row":
+                # Extract attributes as a dictionary
+                row_data = element.attrib
 
-    # Return the combined DataFrame
-    return combined_posts_df
+                # Append the dictionary to the list
+                all_posts_data.append(row_data)
+
+                # Clear the element to free memory
+                element.clear()
+
+    # Convert the list of dictionaries into a DataFrame
+    posts_df = pd.DataFrame(all_posts_data)
+
+    return posts_df
