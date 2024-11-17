@@ -1,3 +1,4 @@
+from Domain.Models.Server import Server
 from Services.DataImporterServices.CommentsImporterService import load_comments_data
 from Services.DataImporterServices.PostsImporterService import load_posts_data
 from Services.DataImporterServices.UsersImporterService import load_users_data
@@ -5,21 +6,23 @@ from Services.DataPreprocessServices.CommentsDataPreprocessService import prepro
 from Services.DataPreprocessServices.PostsDataPreprocessService import preprocess_posts_data
 from Services.DataPreprocessServices.UserDataPreprocessService import preprocess_users_data
 
-# Load and preprocess users data
+# Load and data from XML
 users_df = load_users_data()
-prepared_users = preprocess_users_data(users_df)
-
-# Extract reputable user IDs
-reputable_user_ids = prepared_users['AccountId'].tolist()
-
-# Load posts data
 posts_df = load_posts_data()
-
-# Preprocess posts to filter by reputable users and PostTypeId
-filtered_posts = preprocess_posts_data(posts_df, reputable_user_ids)
-
-# Preprocess comments
 comments_df = load_comments_data()
-filtered_comments = preprocess_comments_data(comments_df)
 
-print(filtered_comments)
+# Preprocess Data
+users_data = preprocess_users_data(users_df)
+reputable_user_ids = users_data['AccountId'].tolist() # Extract reputable user IDs
+posts_data = preprocess_posts_data(posts_df, reputable_user_ids)
+comments_data = preprocess_comments_data(comments_df)
+
+# Make cluster of 10 Servers
+servers_cluster = [
+    Server("Lenovo ThinkCentre MQ 7i"), Server("Dell OptiFlex 70D"), Server("HP OmniRun 2V"),
+    Server("Lenovo ThinkStation P350"), Server("Dell PowerEdge T40"),
+    Server("HP ProLant DL360"), Server("Lenovo ThinkEdge SE50"), Server("Dell Latitude 7520"),
+    Server("HP ZBook Firefly G9"), Server("Lenovo Legion T5 28IMB05")
+]
+
+[print(str(server)) for server in servers_cluster]
