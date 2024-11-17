@@ -40,7 +40,7 @@ class FaultSimulator:
             user_ids = csr_matrix(comments['UserId'].values.reshape(-1, 1))
 
             # TODO NE RADI, NE ZNAM
-            return [int(item) for item in comments]
+            return comments
 
 
             features = hstack([scores, user_ids], format='csr')
@@ -209,6 +209,6 @@ class FaultSimulator:
                 print("No suitable resolution found in available comments")
 
         except Exception as e:
-            print(f"{str(e)}")
+            print(e)
         finally:
             gc.collect()
