@@ -1,10 +1,12 @@
-def show_servers_status(serveri):
+from Domain.Models.Server import Server
+
+
+def show_servers_status(serveri: list[Server]):
     # ASCII art for the server
     ascii_server = (
-        "  ________  \n"
-        " |        | \n"
+        " ---------- \n"
         " | SERVER | \n"
-        " |________| \n"
+        " ---------- \n"
     )
 
     # Define the layout for rows
