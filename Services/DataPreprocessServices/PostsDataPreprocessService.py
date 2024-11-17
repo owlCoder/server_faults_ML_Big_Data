@@ -1,6 +1,6 @@
 import pandas as pd
 
-from Services.TextCleanUpService.TextCleanService import clean_text
+from Services.TextCleanUpServices.TextCleanService import clean_text
 
 
 def preprocess_posts_data(posts_df, reputable_user_ids):

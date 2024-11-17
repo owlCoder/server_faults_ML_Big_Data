@@ -16,7 +16,7 @@ def load_posts_data():
     all_posts_data = []
 
     # Iterate through multiple XML files
-    for i in range(0, 2):
+    for i in range(0, 1):
         xml_file_path = POSTS_XML_PATH.format(i)
 
         # Parse XML iteratively

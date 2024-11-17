@@ -1,5 +1,5 @@
 import pandas as pd
-from Services.TextCleanUpService.TextCleanService import clean_text
+from Services.TextCleanUpServices.TextCleanService import clean_text
 
 def preprocess_comments_data(comments_df):
     """
