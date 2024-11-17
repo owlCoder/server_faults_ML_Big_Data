@@ -106,13 +106,13 @@ class SimulationManager:
             self._simulator = FaultSimulator()
             self._monitor = ServerMonitor(servers_cluster)
 
-            # Start monitoring
-            self._monitor.start_monitoring()
-
             # Initial grouping of comments
             print("\n⏳ Processing comment data...")
             grouped_comments = self._simulator.group_similar_comments(comments_data)
             print("✅ Comment processing complete")
+
+            # Start monitoring
+            self._monitor.start_monitoring()
 
             print("\n▶️ Beginning fault simulation...")
             while not self._stop_event.is_set():

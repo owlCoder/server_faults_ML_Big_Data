@@ -18,12 +18,12 @@ class SafeLabelEncoder(LabelEncoder):
         self.classes_ = np.array([])
 
     def fit(self, y):
-        # Convert values to strings for consistent handling
+        # Convert values to strings for handling
         y = y.astype(str)
         return super().fit(y)
 
     def transform(self, y):
-        # Convert values to strings for consistent handling
+        # Convert values to strings for handling
         y = y.astype(str)
 
         # Handle unseen labels by adding them to the encoder
@@ -121,9 +121,12 @@ class FaultSimulator:
             unique_classes = np.unique(labels)
 
             # Initialize classifiers
-            sgd = SGDClassifier(loss='log_loss', max_iter=5, tol=1e-2, random_state=42)
-            logistic = LogisticRegression(max_iter=50, solver='sag', n_jobs=2)
-            rf = RandomForestClassifier(n_estimators=20, max_depth=5, n_jobs=2)
+            print("SGD")
+            sgd = SGDClassifier(loss='log_loss', max_iter=1, tol=1e-2, random_state=42, n_jobs=-1)
+            print("LOGISTIC")
+            logistic = LogisticRegression(max_iter=1, solver='sag', n_jobs=-1)
+            print("RF")
+            rf = RandomForestClassifier(n_estimators=2, max_depth=5, n_jobs=-1)
 
             self._models.update({
                 'sgd_classifier': weakref.ref(sgd),
@@ -134,7 +137,8 @@ class FaultSimulator:
             # Train classifiers in batches
             predictions = np.zeros((len(comments), 3), dtype=np.int32)
 
-            for start_idx in range(0, features.shape[0], batch_size):
+            print("TRAIN MODEL")
+            for start_idx in range(0, 1): #features.shape[0], batch_size
                 end_idx = min(start_idx + batch_size, features.shape[0])
                 batch_features = features[start_idx:end_idx]
                 batch_labels = labels[start_idx:end_idx]
@@ -153,6 +157,7 @@ class FaultSimulator:
                 gc.collect()
 
             # Majority voting algorithm
+            print("FINAL PREDICTIONS")
             final_predictions = np.zeros(len(comments), dtype=np.int32)
             for i in range(0, len(comments), batch_size):
                 end_idx = min(i + batch_size, len(comments))
