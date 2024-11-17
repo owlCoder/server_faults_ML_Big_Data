@@ -38,6 +38,11 @@ class FaultSimulator:
             # Create sparse features
             scores = csr_matrix(comments['Score'].values.reshape(-1, 1))
             user_ids = csr_matrix(comments['UserId'].values.reshape(-1, 1))
+
+            # TODO NE RADI, NE ZNAM
+            return [int(item) for item in comments]
+
+
             features = hstack([scores, user_ids], format='csr')
 
             labels = comments['PostId'].values
@@ -45,8 +50,8 @@ class FaultSimulator:
             # Initialize classifier
             sgd_classifier = SGDClassifier(
                 loss='log_loss',
-                max_iter=100,
-                tol=1e-3,
+                max_iter=10,
+                tol=1e-1,
                 random_state=42,
                 learning_rate='optimal'
             )
@@ -157,7 +162,7 @@ class FaultSimulator:
                 print("No servers available for fault handling")
                 return
 
-            # Select server ensuring fair distribution
+            # Select server = fair distribution
             fault = pick_a_server_fault(posts)
             if fault is None or fault.empty:
                 print("No fault detected")
@@ -176,7 +181,7 @@ class FaultSimulator:
             fault_id = int(fault["Id"].iloc[0])
             faulty_server.dodaj_otkaz(fault_id)
 
-            print(f"\nFault detected on server {faulty_server.naziv} (ID: {server_id})")
+            print(f"\n⚠️ Fault detected on server {faulty_server.naziv} (ID: {server_id})")
             print(f"Fault ID: {fault_id}")
             print(f"Current server fault count: {len(faulty_server.lista_otkaza)}")
             print(f"Total system faults: {self._total_faults}")
@@ -204,6 +209,6 @@ class FaultSimulator:
                 print("No suitable resolution found in available comments")
 
         except Exception as e:
-            print(f"Error handling fault: {str(e)}")
+            print(f"{str(e)}")
         finally:
             gc.collect()
