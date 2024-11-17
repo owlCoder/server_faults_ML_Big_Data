@@ -1,4 +1,6 @@
-scikit-learn
-pandas
+scikit-learn~=1.5.2
+pandas~=2.2.3
 lxml
-datetime
+datetime~=5.5
+numpy~=2.1.3
+scipy~=1.14.1
