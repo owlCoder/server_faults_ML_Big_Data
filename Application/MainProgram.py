@@ -8,9 +8,7 @@ from Services.DataImporterServices.UsersImporterService import load_users_data
 from Services.DataPreprocessServices.CommentsDataPreprocessService import preprocess_comments_data
 from Services.DataPreprocessServices.PostsDataPreprocessService import preprocess_posts_data
 from Services.DataPreprocessServices.UserDataPreprocessService import preprocess_users_data
-from Services.FaultSimulationServices.FaultPickerService import pick_a_server_fault
-from Services.ServerWorkSimulationWithFaultsServices.ServerWorkSimulationWithFaultsService import \
-    run_simulation_with_faults
+from Services.ServerWorkSimulationWithFaultsServices.ServerWorkSimulationWithFaultsService import run_simulation_with_faults
 
 # Load and data from XML
 users_df = load_users_data()
@@ -35,6 +33,4 @@ servers_cluster = [
 threading.Thread(target=lambda: [show_servers_status(servers_cluster) or time.sleep(5) for _ in iter(int, 1)]).start()
 
 # Run simulation
-while 1:
-    run_simulation_with_faults(users_data, posts_data, comments_data, servers_cluster)
-    time.sleep(3)
+threading.Thread(target=lambda: [run_simulation_with_faults(users_data, posts_data, comments_data, servers_cluster) or time.sleep(3) for _ in iter(int, 1)]).start()
