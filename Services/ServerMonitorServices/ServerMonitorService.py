@@ -26,7 +26,7 @@ class ServerMonitor:
             self._monitor_thread.daemon = True
             self._monitor_thread.start()
             print("\n🔄 Server monitoring started...")
-            print(f"Monitoring {len(self.servers)} servers with {self.update_interval}s interval")
+            print(f"ℹ️ Monitoring {len(self.servers)} servers with {self.update_interval}s interval")
 
     def stop_monitoring(self):
         print("\n⏹️ Stopping server monitoring...")
@@ -99,7 +99,7 @@ class SimulationManager:
                        comments_data: pd.DataFrame,
                        servers_cluster: List) -> None:
         """
-        Main simulation runner with improved resource management and cleanup.
+        Main simulation runner.
         """
         try:
             print("\n🚀 Starting simulation...")
@@ -157,7 +157,7 @@ def run_simulation(users_data: pd.DataFrame,
                    servers_cluster: List,
                    simulation_interval: int = 3) -> None:
     """
-    Wrapper function to maintain backward compatibility
+    Wrapper function.
     """
     manager = SimulationManager(simulation_interval)
     manager.run_simulation(users_data, posts_data, comments_data, servers_cluster)

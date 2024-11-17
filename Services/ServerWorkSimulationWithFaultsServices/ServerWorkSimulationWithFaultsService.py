@@ -1,14 +1,36 @@
 import random
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import SGDClassifier
-from scipy.sparse import csr_matrix, hstack
+from sklearn.linear_model import SGDClassifier, LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import LabelEncoder
+from scipy.sparse import csr_matrix, hstack, vstack
 import weakref
 from threading import Event
 from Services.FaultSimulationServices.FaultPickerService import pick_a_server_fault
 import gc
+
+class SafeLabelEncoder(LabelEncoder):
+    def __init__(self):
+        super().__init__()
+        self.classes_ = np.array([])
+
+    def fit(self, y):
+        # Convert values to strings for consistent handling
+        y = y.astype(str)
+        return super().fit(y)
+
+    def transform(self, y):
+        # Convert values to strings for consistent handling
+        y = y.astype(str)
+
+        # Handle unseen labels by adding them to the encoder
+        unseen = np.setdiff1d(np.unique(y), self.classes_)
+        if len(unseen) > 0:
+            self.classes_ = np.concatenate([self.classes_, unseen])
+        return np.array([np.where(self.classes_ == item)[0][0] for item in y])
 
 
 class FaultSimulator:
@@ -19,150 +41,203 @@ class FaultSimulator:
         self._fault_counts = {}
         self._total_faults = 0
         self._resolved_faults = 0
+        self._label_encoders = {}
 
     def cleanup(self):
         self._stop_event.set()
         for model_key in list(self._models.keys()):
-            del self._models[model_key]
+            model = self._models[model_key]()  # Actual object from weak ref
+            if model is not None:
+                del model
         self._models.clear()
+        self._label_encoders.clear()
         gc.collect()
+
+    @staticmethod
+    def _process_in_batches(data: pd.DataFrame, batch_size: int = 1000) -> pd.DataFrame:
+        """Process DataFrames in batches"""
+        result_chunks = []
+        for start_idx in range(0, len(data), batch_size):
+            end_idx = min(start_idx + batch_size, len(data))
+            chunk = data.iloc[start_idx:end_idx].copy()
+            result_chunks.append(chunk)
+            gc.collect()
+        return pd.concat(result_chunks) if result_chunks else pd.DataFrame()
+
+    def _prepare_features(self, comments: pd.DataFrame, batch_size: int = 1000) -> csr_matrix | Any:
+        """
+        Feature preparation using sparse matrices and batching with label encoding
+        """
+        if 'UserId' not in self._label_encoders:
+            self._label_encoders['UserId'] = SafeLabelEncoder()
+
+        features_list = []
+        for start_idx in range(0, len(comments), batch_size):
+            end_idx = min(start_idx + batch_size, len(comments))
+            chunk = comments.iloc[start_idx:end_idx]
+
+            # Convert scores to numeric
+            scores = pd.to_numeric(chunk['Score'], errors='coerce').fillna(0)
+
+            # Handle user IDs
+            if start_idx == 0:  # First batch - fit and transform
+                user_ids = self._label_encoders['UserId'].fit(chunk['UserId'].fillna('UNKNOWN'))
+                user_ids = self._label_encoders['UserId'].transform(chunk['UserId'].fillna('UNKNOWN'))
+            else:  # Subsequent batches - transform only
+                user_ids = self._label_encoders['UserId'].transform(chunk['UserId'].fillna('UNKNOWN'))
+
+            # Create sparse matrices for the chunk
+            chunk_features = hstack([
+                csr_matrix(scores.values.reshape(-1, 1)),
+                csr_matrix(user_ids.reshape(-1, 1))
+            ])
+
+            features_list.append(chunk_features)
+            gc.collect()
+
+        # Combine all chunks
+        if features_list:
+            return vstack(features_list, format='csr')
+        return csr_matrix((0, 2))
 
     def group_similar_comments(self, comments: pd.DataFrame) -> np.ndarray:
         """
-        Groups similar comments using SGDClassifier with sparse matrix handling.
+        Grouping of similar comments with label handling
         """
         if not isinstance(comments, pd.DataFrame):
             raise ValueError("Comments must be a pandas DataFrame")
 
         try:
-            # Create sparse features
-            scores = csr_matrix(comments['Score'].values.reshape(-1, 1))
-            user_ids = csr_matrix(comments['UserId'].values.reshape(-1, 1))
-
-            # TODO NE RADI, NE ZNAM
-            return comments
-
-
-            features = hstack([scores, user_ids], format='csr')
-
-            labels = comments['PostId'].values
-
-            # Initialize classifier
-            sgd_classifier = SGDClassifier(
-                loss='log_loss',
-                max_iter=10,
-                tol=1e-1,
-                random_state=42,
-                learning_rate='optimal'
-            )
-
-            self._models['sgd_classifier'] = weakref.ref(sgd_classifier)
-
-            # Train in mini-batches
             batch_size = 1000
-            n_samples = features.shape[0]
+            features = self._prepare_features(comments, batch_size)
 
-            for i in range(0, n_samples, batch_size):
-                end_idx = min(i + batch_size, n_samples)
-                batch_features = features[i:end_idx]
-                batch_labels = labels[i:end_idx]
+            # Convert PostId to numeric categories
+            if 'PostId' not in self._label_encoders:
+                self._label_encoders['PostId'] = SafeLabelEncoder()
 
-                if i == 0:
-                    sgd_classifier.partial_fit(
-                        batch_features,
-                        batch_labels,
-                        classes=np.unique(labels)
-                    )
+            # Ensure PostId is handled
+            comments['PostId'] = comments['PostId'].fillna(-1).astype(str)
+            labels = self._label_encoders['PostId'].fit_transform(comments['PostId'])
+            unique_classes = np.unique(labels)
+
+            # Initialize classifiers
+            sgd = SGDClassifier(loss='log_loss', max_iter=5, tol=1e-2, random_state=42)
+            logistic = LogisticRegression(max_iter=50, solver='sag', n_jobs=2)
+            rf = RandomForestClassifier(n_estimators=20, max_depth=5, n_jobs=2)
+
+            self._models.update({
+                'sgd_classifier': weakref.ref(sgd),
+                'logistic_classifier': weakref.ref(logistic),
+                'rf_classifier': weakref.ref(rf)
+            })
+
+            # Train classifiers in batches
+            predictions = np.zeros((len(comments), 3), dtype=np.int32)
+
+            for start_idx in range(0, features.shape[0], batch_size):
+                end_idx = min(start_idx + batch_size, features.shape[0])
+                batch_features = features[start_idx:end_idx]
+                batch_labels = labels[start_idx:end_idx]
+
+                if start_idx == 0:
+                    sgd.partial_fit(batch_features, batch_labels, classes=unique_classes)
+                    logistic.fit(batch_features, batch_labels)
+                    rf.fit(batch_features, batch_labels)
                 else:
-                    sgd_classifier.partial_fit(batch_features, batch_labels)
+                    sgd.partial_fit(batch_features, batch_labels)
 
-            # Predict in batches
-            grouped_comments = np.zeros(n_samples, dtype=np.int32)
-            for i in range(0, n_samples, batch_size):
-                end_idx = min(i + batch_size, n_samples)
-                batch_features = features[i:end_idx]
-                grouped_comments[i:end_idx] = sgd_classifier.predict(batch_features)
+                predictions[start_idx:end_idx, 0] = sgd.predict(batch_features)
+                predictions[start_idx:end_idx, 1] = logistic.predict(batch_features)
+                predictions[start_idx:end_idx, 2] = rf.predict(batch_features)
 
-            return grouped_comments
+                gc.collect()
+
+            # Majority voting algorithm
+            final_predictions = np.zeros(len(comments), dtype=np.int32)
+            for i in range(0, len(comments), batch_size):
+                end_idx = min(i + batch_size, len(comments))
+                batch_pred = predictions[i:end_idx]
+                final_predictions[i:end_idx] = np.apply_along_axis(
+                    lambda x: np.bincount(x).argmax(),
+                    axis=1,
+                    arr=batch_pred
+                )
+                gc.collect()
+
+            return final_predictions
 
         finally:
             gc.collect()
 
-    def predict_best_comment(self,
-                             posts: pd.DataFrame,
-                             comments: pd.DataFrame) -> Optional[int]:
+    def predict_best_comment(self, posts: pd.DataFrame, comments: pd.DataFrame) -> Optional[int]:
         """
-        Predicts the best comment using SGDClassifier with sparse matrix handling.
+        Prediction of best comment with labels
         """
         try:
             if comments.empty or posts.empty:
                 return None
 
-            # Create sparse feature matrix
-            features = csr_matrix(comments['Score'].values.reshape(-1, 1))
-            n_samples = features.shape[0]
-
-            # Create binary target
-            median_id = posts['Id'].median()
-            target = (posts['Id'].values > median_id)
-
-            sgd_classifier = SGDClassifier(
-                loss='log_loss',
-                max_iter=100,
-                tol=1e-3,
-                random_state=42,
-                learning_rate='optimal'
-            )
-
-            self._models['comment_predictor'] = weakref.ref(sgd_classifier)
-
-            # Train in mini-batches
             batch_size = 1000
-            unique_classes = np.unique(target)
+            features = self._prepare_features(comments, batch_size)
 
-            for i in range(0, n_samples, batch_size):
-                end_idx = min(i + batch_size, n_samples)
-                batch_features = features[i:end_idx]
-                batch_target = target[i:end_idx]
+            # Binary target
+            posts['Id'] = pd.to_numeric(posts['Id'], errors='coerce').fillna(-1)
+            median_id = posts['Id'].median()
+            target = (posts['Id'] > median_id).astype(int)
+            unique_classes = np.array([0, 1])
 
-                if i == 0:
-                    sgd_classifier.partial_fit(
-                        batch_features,
-                        batch_target,
-                        classes=unique_classes
-                    )
+            # Initialize classifiers
+            sgd = SGDClassifier(loss='log_loss', max_iter=5, tol=1e-2, random_state=42)
+            logistic = LogisticRegression(max_iter=50, solver='sag', n_jobs=2)
+            rf = RandomForestClassifier(n_estimators=20, max_depth=5, n_jobs=2)
+
+            self._models.update({
+                'comment_sgd': weakref.ref(sgd),
+                'comment_logistic': weakref.ref(logistic),
+                'comment_rf': weakref.ref(rf)
+            })
+
+            # Train and predict in batches
+            all_probs = np.zeros((len(comments), 3))
+
+            for start_idx in range(0, features.shape[0], batch_size):
+                end_idx = min(start_idx + batch_size, features.shape[0])
+                batch_features = features[start_idx:end_idx]
+                batch_target = target[start_idx:end_idx]
+
+                if start_idx == 0:
+                    sgd.partial_fit(batch_features, batch_target, classes=unique_classes)
+                    logistic.fit(batch_features, batch_target)
+                    rf.fit(batch_features, batch_target)
                 else:
-                    sgd_classifier.partial_fit(batch_features, batch_target)
+                    sgd.partial_fit(batch_features, batch_target)
 
-            # Predict probabilities in batches
-            all_probs = np.zeros(n_samples)
-            for i in range(0, n_samples, batch_size):
-                end_idx = min(i + batch_size, n_samples)
-                batch_features = features[i:end_idx]
-                probs = sgd_classifier.predict_proba(batch_features)
-                all_probs[i:end_idx] = probs[:, 1]
+                all_probs[start_idx:end_idx, 0] = sgd.predict_proba(batch_features)[:, 1]
+                all_probs[start_idx:end_idx, 1] = logistic.predict_proba(batch_features)[:, 1]
+                all_probs[start_idx:end_idx, 2] = rf.predict_proba(batch_features)[:, 1]
 
-            best_comment_idx = np.argmax(all_probs)
+                gc.collect()
+
+            # Find best comment
+            ensemble_probs = np.mean(all_probs, axis=1)
+            best_comment_idx = np.argmax(ensemble_probs)
+
             return comments.iloc[best_comment_idx].Id
 
         finally:
             gc.collect()
 
-    def handle_fault(self,
-                     users: pd.DataFrame,
-                     comments: pd.DataFrame,
-                     posts: pd.DataFrame,
-                     servers: List,
-                     grouped_comments: np.ndarray) -> None:
+    def handle_fault(self, users: pd.DataFrame, comments: pd.DataFrame,
+                     posts: pd.DataFrame, servers: List, grouped_comments: np.ndarray) -> None:
         """
-        Handles a server fault with improved fault distribution and memory management.
+        Fault handling with data handling
         """
         try:
             if not servers:
-                print("No servers available for fault handling")
+                print("ℹ️ No servers available for fault handling")
                 return
 
-            # Select server = fair distribution
+            # Select server with fair distribution
             fault = pick_a_server_fault(posts)
             if fault is None or fault.empty:
                 print("No fault detected")
@@ -178,37 +253,41 @@ class FaultSimulator:
             self._fault_counts[server_id] = self._fault_counts.get(server_id, 0) + 1
 
             # Add fault to server
-            fault_id = int(fault["Id"].iloc[0])
-            faulty_server.dodaj_otkaz(fault_id)
+            try:
+                fault_id = int(fault["Id"].iloc[0])
+                faulty_server.dodaj_otkaz(fault_id)
+            except (ValueError, TypeError):
+                print("Invalid fault ID detected")
+                return
 
             print(f"\n⚠️ Fault detected on server {faulty_server.naziv} (ID: {server_id})")
             print(f"Fault ID: {fault_id}")
             print(f"Current server fault count: {len(faulty_server.lista_otkaza)}")
             print(f"Total system faults: {self._total_faults}")
 
-            predicted_comment = self.predict_best_comment(posts, comments)
+            # Process prediction in smaller chunks
+            predicted_comment = self.predict_best_comment(
+                posts.copy(),
+                comments.copy()
+            )
 
             if predicted_comment is not None:
-                comment_mask = comments['Id'] == predicted_comment
-                if any(comment_mask):
-                    user_id = comments.loc[comment_mask, 'UserId'].iloc[0]
-                    user_mask = users['AccountId'] == user_id
-                    if any(user_mask):
-                        user_name = users.loc[user_mask, 'DisplayName'].iloc[0]
-                        self._resolved_faults += 1
-                        print(f"\n✅ Fault successfully resolved!")
-                        print(f"Resolution provided by user: {user_name}")
-                        print(f"Total resolved faults: {self._resolved_faults}/{self._total_faults}")
-                        print(f"Current resolution rate: {(self._resolved_faults / self._total_faults) * 100:.1f}%")
-                    else:
-                        print("\n⚠️ Fault partially resolved - User not found")
-                else:
-                    print("\n⚠️ Fault partially resolved - Comment not found")
+                try:
+                    comment_info = comments[comments['Id'] == predicted_comment].iloc[0]
+                    user_info = users[users['AccountId'] == comment_info['UserId']].iloc[0]
+
+                    self._resolved_faults += 1
+                    print(f"\n✅ Fault successfully resolved!")
+                    print(f"Resolution provided by user: {user_info['DisplayName']}")
+                    print(f"Total resolved faults: {self._resolved_faults}/{self._total_faults}")
+                    print(f"Current resolution rate: {(self._resolved_faults / self._total_faults) * 100:.1f}%")
+                except IndexError:
+                    print("\n⚠️ Fault partially resolved - User or comment information not found")
             else:
                 print("\n❌ Fault could not be resolved")
                 print("No suitable resolution found in available comments")
 
         except Exception as e:
-            print(e)
+            print(f"Error handling fault: {str(e)}")
         finally:
             gc.collect()
