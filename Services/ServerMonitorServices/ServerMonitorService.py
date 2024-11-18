@@ -155,7 +155,7 @@ def run_simulation(users_data: pd.DataFrame,
                    posts_data: pd.DataFrame,
                    comments_data: pd.DataFrame,
                    servers_cluster: List,
-                   simulation_interval: int = 3) -> None:
+                   simulation_interval: int = 7) -> None:
     """
     Wrapper function.
     """

@@ -14,7 +14,7 @@ def preprocess_comments_data(comments_df):
                       and only comments from reputable users.
     """
     # Select only the relevant columns
-    comments_df = comments_df[['PostId', 'Score', 'Text', 'UserId']]
+    comments_df = comments_df[['Id', 'PostId', 'Score', 'Text', 'UserId']]
 
     # Drop rows where 'UserId' is missing (optional)
     comments_df = comments_df.dropna(subset=['UserId'])

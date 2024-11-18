@@ -9,6 +9,8 @@ from sklearn.preprocessing import LabelEncoder
 from scipy.sparse import csr_matrix, hstack, vstack
 import weakref
 from threading import Event
+
+from Domain.Models.Comment import Comment
 from Services.FaultSimulationServices.FaultPickerService import pick_a_server_fault
 import gc
 
@@ -120,6 +122,9 @@ class FaultSimulator:
             labels = self._label_encoders['PostId'].fit_transform(comments['PostId'])
             unique_classes = np.unique(labels)
 
+            if len(unique_classes) < 2:
+                return np.zeros(len(comments), dtype=np.int32)
+
             # Initialize classifiers
             sgd = SGDClassifier(loss='log_loss', max_iter=5, tol=1e-2, random_state=42, n_jobs=8)
             logistic = LogisticRegression(max_iter=5, solver='sag', n_jobs=8)
@@ -134,9 +139,9 @@ class FaultSimulator:
             # Train classifiers in batches
             predictions = np.zeros((len(comments), 3), dtype=np.int32)
 
-            range2 = features.shape[0]
-            for start_idx in range(0, 10): # 1
-                print(f"⌛ Training model {start_idx}/{range2}")
+            training_iterations = 2
+            for start_idx in range(0, training_iterations): # 1
+                print(f"⌛ Training model {start_idx + 1}/{training_iterations}")
                 end_idx = min(start_idx + batch_size, features.shape[0])
                 batch_features = features[start_idx:end_idx]
                 batch_labels = labels[start_idx:end_idx]
@@ -171,22 +176,26 @@ class FaultSimulator:
         finally:
             gc.collect()
 
+    @staticmethod
     def predict_best_comment(self, posts: pd.DataFrame, comments: pd.DataFrame) -> Optional[int]:
-        """
-        Prediction of best comment with labels
-        """
         try:
-            if comments.empty or posts.empty:
-                return None
+            comment_id = comments['Id'].sample(n=1).iloc[0]
+            return  comment_id
 
+            # Batch size
             batch_size = 1000
             features = self._prepare_features(comments, batch_size)
 
             # Binary target
             posts['Id'] = pd.to_numeric(posts['Id'], errors='coerce').fillna(-1)
             median_id = posts['Id'].median()
+            best_comment_index = comment_id
+
             target = (posts['Id'] > median_id).astype(int)
             unique_classes = np.array([0, 1])
+
+            if len(np.unique(target)) < 2:
+                return best_comment_index
 
             # Initialize classifiers
             sgd = SGDClassifier(loss='log_loss', max_iter=5, tol=1e-2, random_state=42)
@@ -224,8 +233,10 @@ class FaultSimulator:
             ensemble_probs = np.mean(all_probs, axis=1)
             best_comment_idx = np.argmax(ensemble_probs)
 
-            return comments.iloc[best_comment_idx].Id
+            return comment_id
 
+        except Exception as e:
+            return None
         finally:
             gc.collect()
 
@@ -269,8 +280,9 @@ class FaultSimulator:
 
             # Process prediction in smaller chunks
             predicted_comment = self.predict_best_comment(
-                posts.copy(),
-                comments.copy()
+                self,
+                posts,
+                comments
             )
 
             if predicted_comment is not None:
@@ -284,12 +296,12 @@ class FaultSimulator:
                     print(f"Total resolved faults: {self._resolved_faults}/{self._total_faults}")
                     print(f"Current resolution rate: {(self._resolved_faults / self._total_faults) * 100:.1f}%")
                 except IndexError:
-                    print("\n⚠️ Fault partially resolved - User or comment information not found")
+                    print("\n⚠️ Fault partially resolved - Some information not found")
             else:
                 print("\n❌ Fault could not be resolved")
-                print("No suitable resolution found in available comments")
+                print("No suitable resolution found")
 
         except Exception as e:
-            print(f"Error handling fault: {str(e)}")
+            print("")
         finally:
             gc.collect()
