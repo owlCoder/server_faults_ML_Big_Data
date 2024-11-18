@@ -121,12 +121,9 @@ class FaultSimulator:
             unique_classes = np.unique(labels)
 
             # Initialize classifiers
-            print("SGD")
-            sgd = SGDClassifier(loss='log_loss', max_iter=1, tol=1e-2, random_state=42, n_jobs=-1)
-            print("LOGISTIC")
-            logistic = LogisticRegression(max_iter=1, solver='sag', n_jobs=-1)
-            print("RF")
-            rf = RandomForestClassifier(n_estimators=2, max_depth=5, n_jobs=-1)
+            sgd = SGDClassifier(loss='log_loss', max_iter=5, tol=1e-2, random_state=42, n_jobs=8)
+            logistic = LogisticRegression(max_iter=5, solver='sag', n_jobs=8)
+            rf = RandomForestClassifier(n_estimators=4, max_depth=5, n_jobs=8)
 
             self._models.update({
                 'sgd_classifier': weakref.ref(sgd),
@@ -137,8 +134,9 @@ class FaultSimulator:
             # Train classifiers in batches
             predictions = np.zeros((len(comments), 3), dtype=np.int32)
 
-            print("TRAIN MODEL")
-            for start_idx in range(0, 1): #features.shape[0], batch_size
+            range2 = features.shape[0]
+            for start_idx in range(0, 10): # 1
+                print(f"⌛ Training model {start_idx}/{range2}")
                 end_idx = min(start_idx + batch_size, features.shape[0])
                 batch_features = features[start_idx:end_idx]
                 batch_labels = labels[start_idx:end_idx]
@@ -157,7 +155,6 @@ class FaultSimulator:
                 gc.collect()
 
             # Majority voting algorithm
-            print("FINAL PREDICTIONS")
             final_predictions = np.zeros(len(comments), dtype=np.int32)
             for i in range(0, len(comments), batch_size):
                 end_idx = min(i + batch_size, len(comments))
